@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from flask import Flask, request, make_response, jsonify
 from flask_migrate import Migrate
 
@@ -25,10 +23,64 @@ def bakeries():
 
 @app.route('/bakeries/<int:id>')
 def bakery_by_id(id):
-
     bakery = Bakery.query.filter_by(id=id).first()
     bakery_serialized = bakery.to_dict()
     return make_response ( bakery_serialized, 200  )
+
+@app.route('/baked_goods', methods=['POST'])
+def create_baked_good():
+    name = request.form.get('name')
+    price = request.form.get('price')
+    bakery_id = request.form.get('bakery_id')
+    
+    # Check if all required form data is provided
+    if not name:  
+        return make_response(jsonify({'error': 'Missing name'}), 400)
+    if not price:
+        return make_response(jsonify({'error': 'Missing price'}), 400)
+    if not bakery_id:
+        return make_response(jsonify({'error': 'Missing bakery_id'}), 400)
+    # Check if bakery exists
+    bakery = Bakery.query.get(bakery_id)
+    if not bakery:
+        return make_response(jsonify({'error': 'Bakery not found'}), 404)
+
+    # Create new BakedGood object and add it to the database
+    baked_good = BakedGood(name=name, price=price, bakery=bakery)
+    db.session.add(baked_good)
+    db.session.commit()
+    
+    # Return the newly created baked good data as JSON
+    return make_response(jsonify(baked_good.to_dict()), 201)
+
+
+@app.route('/bakeries/<int:id>', methods=['PATCH'])
+def update_bakery(id):
+    bakery = Bakery.query.get(id)
+    if not bakery:
+        return make_response({'error': 'Bakery not found'}, 404)
+    
+    # Get the new name from the form data
+    new_name = request.form.get('name')
+
+    # Update the bakery name if new_name is provided
+    if new_name:
+        bakery.name = new_name
+    
+    # Commit the changes to the database
+    db.session.commit()
+
+    # Return the updated bakery data as JSON
+    return make_response(bakery.to_dict(), 200)
+
+@app.route('/baked_goods/<int:id>', methods=['DELETE'])
+def delete_baked_good(id):
+    baked_good = BakedGood.query.get(id)
+    if not baked_good:
+        return make_response({'error': 'Baked good not found'}, 404)
+    db.session.delete(baked_good)
+    db.session.commit()
+    return make_response({'message': 'Baked good deleted successfully'}, 200)
 
 @app.route('/baked_goods/by_price')
 def baked_goods_by_price():
@@ -36,14 +88,7 @@ def baked_goods_by_price():
     baked_goods_by_price_serialized = [
         bg.to_dict() for bg in baked_goods_by_price
     ]
-    return make_response( baked_goods_by_price_serialized, 200  )
-   
-
-@app.route('/baked_goods/most_expensive')
-def most_expensive_baked_good():
-    most_expensive = BakedGood.query.order_by(BakedGood.price.desc()).limit(1).first()
-    most_expensive_serialized = most_expensive.to_dict()
-    return make_response( most_expensive_serialized,   200  )
+    return make_response(baked_goods_by_price_serialized, 200)
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
